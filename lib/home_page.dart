@@ -1,13 +1,30 @@
 import 'package:flutter/material.dart';
-import 'quiz_page.dart'; // Assure-toi que ce chemin est correct
+import 'package:provider/provider.dart';
+import 'quiz_page.dart';
 import 'quiz_settings_page.dart';
+import 'ThemeNotifier.dart';
+
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Accueil')),
+      appBar: AppBar(
+        title: const Text('Accueil'),
+        actions: [
+          IconButton(
+            icon: Icon(
+              Provider.of<ThemeNotifier>(context).isDark
+                  ? Icons.dark_mode
+                  : Icons.light_mode,
+            ),
+            onPressed: () {
+              Provider.of<ThemeNotifier>(context, listen: false).toggleTheme();
+            },
+          ),
+        ],
+      ),
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -29,7 +46,8 @@ class HomePage extends StatelessWidget {
                   applicationName: 'Flutter Quiz App',
                   applicationVersion: '1.0.0',
                   children: const [
-                    Text('Développé par Mohamed Bouraoui Bouaziz.\nCe quiz utilise l\'API OpenTDB.')
+                    Text(
+                        'Développé par Mohamed Bouraoui Bouaziz.\nCe quiz utilise l\'API OpenTDB.')
                   ],
                 );
               },
