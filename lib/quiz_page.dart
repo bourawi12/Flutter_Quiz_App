@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'models/question.dart';
-import 'services/api_service.dart';
 import 'dart:async';
+import 'package:audioplayers/audioplayers.dart';
+import 'package:flutter_vibrate/flutter_vibrate.dart'; // Import the package
 
 class QuizPage extends StatefulWidget {
   final List<Question> questions;
@@ -15,53 +16,81 @@ class QuizPage extends StatefulWidget {
 class _QuizPageState extends State<QuizPage> {
   int currentIndex = 0;
   int score = 0;
-  // Timer variables
+
   late Timer _timer;
-  int _timeRemaining = 15; // 15 seconds per question
+  int _timeRemaining = 15;
   final int _maxTimePerQuestion = 15;
+
+  final AudioPlayer _audioPlayer = AudioPlayer();
 
   @override
   void initState() {
     super.initState();
-    // Start the timer when the page is initialized
     _startTimer();
   }
 
   @override
   void dispose() {
-    // Cancel the timer when the widget is disposed to prevent memory leaks
     _timer.cancel();
+    _audioPlayer.dispose();
     super.dispose();
   }
 
   void _startTimer() {
-    // Reset time remaining to max time
     setState(() {
       _timeRemaining = _maxTimePerQuestion;
     });
 
-    // Create a periodic timer that ticks every second
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       setState(() {
         if (_timeRemaining > 0) {
           _timeRemaining--;
         } else {
-          // Time's up, move to next question automatically
           _timer.cancel();
-          // Move to next question without giving points
+          _playSoundLocal('wrong.wav');
+          _vibrate(); // Vibrate when time runs out
           _moveToNextQuestion();
         }
       });
     });
   }
 
-  void checkAnswer(String selectedAnswer) {
-    // Cancel the current timer
+  Future<void> _playSoundLocal(String fileName) async {
+    try {
+      await _audioPlayer.play(AssetSource('sounds/$fileName'));
+    } catch (e) {
+      debugPrint("Error playing local sound: $e");
+    }
+  }
+
+  Future<void> _vibrate() async {
+    // Check if vibration is supported on the device
+    bool canVibrate = await Vibrate.canVibrate;
+    if (canVibrate) {
+      // You can choose different vibration patterns:
+      // Vibrate.feedback(FeedbackType.light); // Light tap
+      // Vibrate.feedback(FeedbackType.medium); // Medium tap
+      // Vibrate.feedback(FeedbackType.heavy); // Heavy tap
+      // Vibrate.feedback(FeedbackType.selection); // A short, distinct vibration
+      // Vibrate.vibrate(); // Default short vibration
+      Vibrate.feedback(FeedbackType.light); // A subtle vibration for answer choice
+    } else {
+      debugPrint("Vibration not supported on this device.");
+    }
+  }
+
+  void checkAnswer(String selectedAnswer) async {
     _timer.cancel();
 
-    if (selectedAnswer == widget.questions[currentIndex].correctAnswer) {
+    final isCorrect = selectedAnswer == widget.questions[currentIndex].correctAnswer;
+    if (isCorrect) {
       score++;
+      await _playSoundLocal('correct.wav');
+    } else {
+      await _playSoundLocal('wrong.wav');
     }
+
+    _vibrate(); // Trigger vibration after an answer is chosen
 
     _moveToNextQuestion();
   }
@@ -70,11 +99,9 @@ class _QuizPageState extends State<QuizPage> {
     if (currentIndex < widget.questions.length - 1) {
       setState(() {
         currentIndex++;
-        // Start the timer for the next question
         _startTimer();
       });
     } else {
-      // Quiz is completed
       _showResultDialog();
     }
   }
@@ -82,7 +109,7 @@ class _QuizPageState extends State<QuizPage> {
   void _showResultDialog() {
     showDialog(
       context: context,
-      barrierDismissible: false, // User must tap button to close dialog
+      barrierDismissible: false,
       builder: (_) => AlertDialog(
         title: const Text("Quiz terminé"),
         content: Text("Votre score : $score/${widget.questions.length}"),
@@ -90,7 +117,7 @@ class _QuizPageState extends State<QuizPage> {
           TextButton(
             onPressed: () {
               Navigator.of(context).pop();
-              Navigator.of(context).pop(); // revenir à l'écran de paramètres
+              Navigator.of(context).pop();
             },
             child: const Text("OK"),
           )
@@ -110,7 +137,6 @@ class _QuizPageState extends State<QuizPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Progress information
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -118,26 +144,21 @@ class _QuizPageState extends State<QuizPage> {
                   "Question ${currentIndex + 1}/${widget.questions.length}",
                   style: const TextStyle(fontSize: 18),
                 ),
-                // Timer display
                 _buildTimerWidget(),
               ],
             ),
             const SizedBox(height: 10),
-
-            // Question text
             Text(
-                question.question,
-                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)
+              question.question,
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 20),
-
-            // Answer options
             ...question.options.map((option) => Padding(
               padding: const EdgeInsets.only(bottom: 8.0),
               child: ElevatedButton(
                 onPressed: () => checkAnswer(option),
                 style: ElevatedButton.styleFrom(
-                  minimumSize: const Size.fromHeight(50), // set minimum height
+                  minimumSize: const Size.fromHeight(50),
                 ),
                 child: Text(option),
               ),
@@ -148,12 +169,9 @@ class _QuizPageState extends State<QuizPage> {
     );
   }
 
-  // Timer widget with visual indicator
   Widget _buildTimerWidget() {
-    // Calculate percentage of time remaining
     final percentRemaining = _timeRemaining / _maxTimePerQuestion;
 
-    // Change color based on time remaining
     Color timerColor;
     if (_timeRemaining > 10) {
       timerColor = Colors.green;
@@ -165,10 +183,8 @@ class _QuizPageState extends State<QuizPage> {
 
     return Row(
       children: [
-        // Timer icon
         Icon(Icons.timer, color: timerColor),
         const SizedBox(width: 5),
-        // Time text
         Text(
           "$_timeRemaining s",
           style: TextStyle(
@@ -178,7 +194,6 @@ class _QuizPageState extends State<QuizPage> {
           ),
         ),
         const SizedBox(width: 10),
-        // Progress bar
         SizedBox(
           width: 100,
           child: LinearProgressIndicator(

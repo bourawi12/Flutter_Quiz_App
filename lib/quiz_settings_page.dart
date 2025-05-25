@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import 'quiz_page.dart';
 import '../models/question.dart';
+import 'package:audioplayers/audioplayers.dart';
+
 
 class QuizSettingsPage extends StatefulWidget {
   const QuizSettingsPage({super.key});
@@ -12,6 +14,7 @@ class QuizSettingsPage extends StatefulWidget {
 
 class _QuizSettingsPageState extends State<QuizSettingsPage> {
   final ApiService apiService = ApiService();
+  final AudioPlayer _player = AudioPlayer();
 
   List<Map<String, dynamic>> categories = [];
   String? selectedCategory;
