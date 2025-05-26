@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:quiz/pages/login_page.dart';
 import 'quiz_page.dart';
 import 'quiz_settings_page.dart';
 import 'ThemeNotifier.dart';
@@ -11,6 +12,15 @@ class HomePage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (_) => const LoginPage()),
+            );
+          },
+        ),
         title: const Text('Accueil'),
         actions: [
           IconButton(
@@ -26,6 +36,7 @@ class HomePage extends StatelessWidget {
         ],
       ),
       body: Center(
+
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
