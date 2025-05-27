@@ -13,6 +13,23 @@ class QuizPage extends StatefulWidget {
   State<QuizPage> createState() => _QuizPageState();
 }
 
+// Class to store quiz results
+class QuizResult {
+  final String question;
+  final String correctAnswer;
+  final String? userAnswer; // null if time ran out
+  final bool isCorrect;
+  final bool timedOut;
+
+  QuizResult({
+    required this.question,
+    required this.correctAnswer,
+    this.userAnswer,
+    required this.isCorrect,
+    required this.timedOut,
+  });
+}
+
 class _QuizPageState extends State<QuizPage> {
   int currentIndex = 0;
   int score = 0;
@@ -27,6 +44,9 @@ class _QuizPageState extends State<QuizPage> {
   String? _selectedAnswer;
   bool _isAnswerChecked = false;
   Map<String, Color?> _answerButtonColors = {};
+
+  // Store quiz results for final summary
+  List<QuizResult> _quizResults = [];
 
   @override
   void initState() {
@@ -64,6 +84,15 @@ class _QuizPageState extends State<QuizPage> {
           final currentQuestion = widget.questions[currentIndex];
           _isAnswerChecked = true;
           _answerButtonColors[currentQuestion.correctAnswer] = Colors.green;
+
+          // Record the result for time out
+          _quizResults.add(QuizResult(
+            question: currentQuestion.question,
+            correctAnswer: currentQuestion.correctAnswer,
+            userAnswer: null, // No answer selected
+            isCorrect: false,
+            timedOut: true,
+          ));
 
           // Move to next question after delay
           Future.delayed(const Duration(seconds: 2), () {
@@ -124,6 +153,15 @@ class _QuizPageState extends State<QuizPage> {
       await _playSoundLocal('wrong.wav');
     }
 
+    // Record the result
+    _quizResults.add(QuizResult(
+      question: currentQuestion.question,
+      correctAnswer: currentQuestion.correctAnswer,
+      userAnswer: selectedAnswer,
+      isCorrect: isCorrect,
+      timedOut: false,
+    ));
+
     await _vibrate();
 
     // Wait 2 seconds to show feedback colors, then move to next question
@@ -151,7 +189,93 @@ class _QuizPageState extends State<QuizPage> {
       barrierDismissible: false,
       builder: (_) => AlertDialog(
         title: const Text("Quiz terminé"),
-        content: Text("Votre score : $score/${widget.questions.length}"),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                "Votre score : $score/${widget.questions.length}",
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                "Détail des réponses :",
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              Flexible(
+                child: SizedBox(
+                  height: 300, // Fixed height for scrollable content
+                  child: ListView.builder(
+                    itemCount: _quizResults.length,
+                    itemBuilder: (context, index) {
+                      final result = _quizResults[index];
+                      return Card(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        child: Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                "Q${index + 1}: ${result.question}",
+                                style: const TextStyle(fontWeight: FontWeight.bold),
+                              ),
+                              const SizedBox(height: 4),
+                              Row(
+                                children: [
+                                  Icon(
+                                    result.isCorrect ? Icons.check_circle : Icons.cancel,
+                                    color: result.isCorrect ? Colors.green : Colors.red,
+                                    size: 16,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    result.isCorrect ? "Correct" : "Incorrect",
+                                    style: TextStyle(
+                                      color: result.isCorrect ? Colors.green : Colors.red,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                "Bonne réponse: ${result.correctAnswer}",
+                                style: const TextStyle(
+                                  color: Colors.green,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              if (result.userAnswer != null)
+                                Text(
+                                  "Votre réponse: ${result.userAnswer}",
+                                  style: TextStyle(
+                                    color: result.isCorrect ? Colors.green : Colors.red,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                )
+                              else
+                                const Text(
+                                  "Temps écoulé - Aucune réponse",
+                                  style: TextStyle(
+                                    color: Colors.orange,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
         actions: [
           TextButton(
             onPressed: () {
