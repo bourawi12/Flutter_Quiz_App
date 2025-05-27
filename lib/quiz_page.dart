@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'models/question.dart';
 import 'dart:async';
 import 'package:audioplayers/audioplayers.dart';
-import 'package:flutter_vibrate/flutter_vibrate.dart'; // Import the package
+import 'package:flutter_vibrate/flutter_vibrate.dart';
 
 class QuizPage extends StatefulWidget {
   final List<Question> questions;
@@ -23,6 +23,11 @@ class _QuizPageState extends State<QuizPage> {
 
   final AudioPlayer _audioPlayer = AudioPlayer();
 
+  // State variables for answer feedback
+  String? _selectedAnswer;
+  bool _isAnswerChecked = false;
+  Map<String, Color?> _answerButtonColors = {};
+
   @override
   void initState() {
     super.initState();
@@ -39,17 +44,33 @@ class _QuizPageState extends State<QuizPage> {
   void _startTimer() {
     setState(() {
       _timeRemaining = _maxTimePerQuestion;
+      _isAnswerChecked = false;
+      _selectedAnswer = null;
+      _answerButtonColors.clear(); // Use clear() instead of {}
     });
 
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) return; // Check if widget is still mounted
+
       setState(() {
         if (_timeRemaining > 0) {
           _timeRemaining--;
         } else {
           _timer.cancel();
           _playSoundLocal('wrong.wav');
-          _vibrate(); // Vibrate when time runs out
-          _moveToNextQuestion();
+          _vibrate();
+
+          // When time runs out, show correct answer
+          final currentQuestion = widget.questions[currentIndex];
+          _isAnswerChecked = true;
+          _answerButtonColors[currentQuestion.correctAnswer] = Colors.green;
+
+          // Move to next question after delay
+          Future.delayed(const Duration(seconds: 2), () {
+            if (mounted) {
+              _moveToNextQuestion();
+            }
+          });
         }
       });
     });
@@ -64,25 +85,38 @@ class _QuizPageState extends State<QuizPage> {
   }
 
   Future<void> _vibrate() async {
-    // Check if vibration is supported on the device
-    bool canVibrate = await Vibrate.canVibrate;
-    if (canVibrate) {
-      // You can choose different vibration patterns:
-      // Vibrate.feedback(FeedbackType.light); // Light tap
-      // Vibrate.feedback(FeedbackType.medium); // Medium tap
-      // Vibrate.feedback(FeedbackType.heavy); // Heavy tap
-      // Vibrate.feedback(FeedbackType.selection); // A short, distinct vibration
-      // Vibrate.vibrate(); // Default short vibration
-      Vibrate.feedback(FeedbackType.light); // A subtle vibration for answer choice
-    } else {
-      debugPrint("Vibration not supported on this device.");
+    try {
+      bool canVibrate = await Vibrate.canVibrate;
+      if (canVibrate) {
+        Vibrate.feedback(FeedbackType.light);
+      }
+    } catch (e) {
+      debugPrint("Vibration error: $e");
     }
   }
 
   void checkAnswer(String selectedAnswer) async {
-    _timer.cancel();
+    if (_isAnswerChecked) return; // Prevent multiple selections
 
-    final isCorrect = selectedAnswer == widget.questions[currentIndex].correctAnswer;
+    _timer.cancel(); // Stop the timer immediately
+
+    final currentQuestion = widget.questions[currentIndex];
+    final isCorrect = selectedAnswer == currentQuestion.correctAnswer;
+
+    setState(() {
+      _selectedAnswer = selectedAnswer;
+      _isAnswerChecked = true;
+
+      // Always show the correct answer in green
+      _answerButtonColors[currentQuestion.correctAnswer] = Colors.green;
+
+      // If the selected answer is wrong, show it in red
+      if (!isCorrect) {
+        _answerButtonColors[selectedAnswer] = Colors.red;
+      }
+    });
+
+    // Update score and play sound
     if (isCorrect) {
       score++;
       await _playSoundLocal('correct.wav');
@@ -90,17 +124,22 @@ class _QuizPageState extends State<QuizPage> {
       await _playSoundLocal('wrong.wav');
     }
 
-    _vibrate(); // Trigger vibration after an answer is chosen
+    await _vibrate();
 
-    _moveToNextQuestion();
+    // Wait 2 seconds to show feedback colors, then move to next question
+    await Future.delayed(const Duration(seconds: 2));
+
+    if (mounted) {
+      _moveToNextQuestion();
+    }
   }
 
   void _moveToNextQuestion() {
     if (currentIndex < widget.questions.length - 1) {
       setState(() {
         currentIndex++;
-        _startTimer();
       });
+      _startTimer(); // This will reset all the feedback state
     } else {
       _showResultDialog();
     }
@@ -153,16 +192,34 @@ class _QuizPageState extends State<QuizPage> {
               style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 20),
-            ...question.options.map((option) => Padding(
-              padding: const EdgeInsets.only(bottom: 8.0),
-              child: ElevatedButton(
-                onPressed: () => checkAnswer(option),
-                style: ElevatedButton.styleFrom(
-                  minimumSize: const Size.fromHeight(50),
+            // Build answer buttons
+            ...question.options.map((option) {
+              Color? buttonColor = _answerButtonColors[option];
+
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 8.0),
+                child: SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: ElevatedButton(
+                    onPressed: _isAnswerChecked ? null : () => checkAnswer(option),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: buttonColor,
+                      disabledBackgroundColor: buttonColor, // Keep color when disabled
+                      foregroundColor: buttonColor != null ? Colors.white : null,
+                      disabledForegroundColor: buttonColor != null ? Colors.white : null,
+                    ),
+                    child: Text(
+                      option,
+                      style: TextStyle(
+                        color: buttonColor != null ? Colors.white : null,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
                 ),
-                child: Text(option),
-              ),
-            )),
+              );
+            }).toList(),
           ],
         ),
       ),
